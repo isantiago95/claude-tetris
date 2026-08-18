@@ -1,0 +1,94 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowedTools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Read,Glob,Grep"'
+          prompt: |
+            Eres un asistente de triage de issues para el repositorio ${{ github.repository }}.
+            El issue #${{ github.event.issue.number }} acaba de ser abierto o editado. Tu tarea:
+
+            1. Lee el issue completo con:
+               gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json title,body,labels,author
+
+            2. Obtén el catálogo de labels disponibles con:
+               gh label list --repo ${{ github.repository }}
+               SOLO puedes usar labels de esa lista. Nunca crees labels nuevos ni uses variaciones de nombre.
+
+            3. Explora el código del repositorio (index.html, game.js, style.css, README.md) con
+               Read/Glob/Grep para fundamentar tu diagnóstico en el código real, no en suposiciones
+               genéricas. Este es un juego de Tetris en JavaScript vainilla.
+
+            4. Aplica los labels apropiados con:
+               gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label "label1,label2"
+               - No elimines labels que ya haya puesto una persona.
+               - No repitas un label que el issue ya tiene.
+               - Si el issue es demasiado vago o le falta información para diagnosticarlo, aplica
+                 el label "question" en vez de inventar un diagnóstico.
+
+            5. Publica un comentario de diagnóstico con:
+               gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file <archivo>
+               (usa un archivo temporal para el cuerpo del comentario, no --body, para evitar
+               problemas de escaping con texto multilínea)
+
+            El comentario debe responder en español y seguir exactamente esta estructura:
+
+            ## Diagnóstico automático
+
+            **Resumen**
+            El problema reformulado en 1-2 frases.
+
+            **Tipo y labels aplicados**
+            Qué labels se aplicaron y por qué.
+
+            **Archivos implicados**
+            Rutas y funciones/líneas concretas del código relacionadas (ej. `game.js:120`), no
+            generalidades. Si no encuentras relación clara con el código, dilo explícitamente.
+
+            **Causa probable**
+            Hipótesis técnica de la causa. Si no hay certeza suficiente, dilo explícitamente en vez
+            de especular como si fuera un hecho.
+
+            **Enfoque sugerido**
+            Pasos de alto nivel para implementar la solución. Este diagnóstico se usará después para
+            escribir el código real, así que sé concreto y accionable.
+
+            **Criterios de aceptación**
+            Cómo se verifica que el problema quedó resuelto.
+
+            **Preguntas abiertas**
+            Qué información falta pedirle al autor del issue, si aplica. Omite esta sección si no
+            hay preguntas pendientes.
+
+            Reglas importantes:
+            - No abras pull requests ni modifiques ningún archivo del repositorio. Tu única salida
+              es el etiquetado del issue y el comentario de diagnóstico.
+            - No repitas literalmente el título/cuerpo del issue como si fuera tu propio análisis.
+            - Sé honesto sobre el nivel de certeza del diagnóstico.
