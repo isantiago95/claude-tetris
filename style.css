@@ -223,7 +223,7 @@ kbd {
   transition: background 0.25s;
 }
 
-.overlay.hidden {
+.hidden {
   display: none;
 }
 
@@ -248,7 +248,7 @@ kbd {
   color: var(--title-color);
 }
 
-#restart-btn {
+.btn {
   margin-top: 8px;
   background: var(--btn-bg);
   color: var(--btn-color);
@@ -260,8 +260,92 @@ kbd {
   cursor: pointer;
   letter-spacing: 1px;
   transition: background 0.15s;
+  font-family: inherit;
 }
 
-#restart-btn:hover {
+.btn:hover {
   background: var(--btn-hover-bg);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--btn-bg);
+  outline-offset: 3px;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--kbd-bg);
+}
+
+/* ---- Pause menu ---- */
+.pause-box {
+  min-width: 220px;
+}
+
+#pause-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--title-color);
+}
+
+.pause-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.pause-controls {
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--board-bg);
+}
+
+.pause-controls ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pause-controls li {
+  font-size: 12px;
+  color: var(--control-color);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pause-level {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--control-color);
+}
+
+.pause-level select {
+  background: var(--kbd-bg);
+  color: var(--text-color);
+  border: 1px solid var(--kbd-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pause-level select:focus-visible {
+  outline: 2px solid var(--btn-bg);
+  outline-offset: 2px;
 }

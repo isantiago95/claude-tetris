@@ -43,8 +43,46 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeSwitch = document.getElementById('theme-switch');
 const themeLabel = document.getElementById('theme-label');
+const pauseOverlay = document.getElementById('pause-overlay');
+const resumeBtn = document.getElementById('resume-btn');
+const restartPauseBtn = document.getElementById('restart-pause-btn');
+const controlsBtn = document.getElementById('controls-btn');
+const pauseControls = document.getElementById('pause-controls');
+const startLevelSelect = document.getElementById('start-level-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let startLevel;
+
+const MIN_START_LEVEL = 1;
+const MAX_START_LEVEL = 15;
+
+function loadStartLevel() {
+  try {
+    const saved = parseInt(localStorage.getItem('tetris-start-level'), 10);
+    if (saved >= MIN_START_LEVEL && saved <= MAX_START_LEVEL) return saved;
+  } catch (e) {
+    // localStorage unavailable (e.g. Safari private mode) — fall back to default
+  }
+  return MIN_START_LEVEL;
+}
+
+function saveStartLevel(lvl) {
+  try {
+    localStorage.setItem('tetris-start-level', String(lvl));
+  } catch (e) {
+    // ignore storage failures
+  }
+}
+
+function initStartLevelSelect() {
+  for (let i = MIN_START_LEVEL; i <= MAX_START_LEVEL; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = i;
+    startLevelSelect.appendChild(opt);
+  }
+  startLevelSelect.value = startLevel;
+}
 
 function gridColor() {
   return getComputedStyle(document.body).getPropertyValue('--grid-color').trim();
@@ -123,6 +161,10 @@ function merge() {
         board[current.y + r][current.x + c] = current.shape[r][c];
 }
 
+function dropIntervalForLevel(lvl) {
+  return Math.max(100, 1000 - (lvl - 1) * 90);
+}
+
 function clearLines() {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
@@ -137,7 +179,7 @@ function clearLines() {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    dropInterval = dropIntervalForLevel(level);
     updateHUD();
   }
 }
@@ -260,13 +302,13 @@ function togglePause() {
   if (gameOver) return;
   paused = !paused;
   if (!paused) {
+    pauseOverlay.classList.add('hidden');
     lastTime = performance.now();
-    loop(lastTime);
+    animId = requestAnimationFrame(loop);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    pauseControls.classList.add('hidden');
+    pauseOverlay.classList.remove('hidden');
   }
 }
 
@@ -291,22 +333,23 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = dropIntervalForLevel(level);
   dropAccum = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -332,5 +375,22 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+resumeBtn.addEventListener('click', () => {
+  if (paused) togglePause();
+});
+
+restartPauseBtn.addEventListener('click', init);
+
+controlsBtn.addEventListener('click', () => {
+  pauseControls.classList.toggle('hidden');
+});
+
+startLevelSelect.addEventListener('change', () => {
+  startLevel = parseInt(startLevelSelect.value, 10);
+  saveStartLevel(startLevel);
+});
+
+startLevel = loadStartLevel();
+initStartLevelSelect();
 initTheme();
 init();
