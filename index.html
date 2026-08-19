@@ -8,7 +8,14 @@
 </head>
 <body>
   <div class="wrapper">
-    <h1 class="game-title">TETRIS</h1>
+    <div class="top-bar">
+      <h1 class="game-title">TETRIS</h1>
+      <label class="theme-toggle" for="theme-switch">
+        <input type="checkbox" id="theme-switch" />
+        <span class="switch"></span>
+        <span id="theme-label">DARK</span>
+      </label>
+    </div>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
