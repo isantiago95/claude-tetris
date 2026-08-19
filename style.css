@@ -24,24 +24,64 @@
   --btn-hover-bg: #9bbdff;
 }
 
-[data-theme="light"] {
-  --bg-color: #f4f4f8;
-  --text-color: #1a1a25;
-  --title-color: #3a5fcd;
-  --title-shadow: rgba(58, 95, 205, 0.35);
+[data-skin="neon"] {
+  --bg-color: #05010f;
+  --text-color: #e0e0ff;
+  --title-color: #ff2ee6;
+  --title-shadow: rgba(255, 46, 230, 0.6);
+  --board-bg: #0a0518;
+  --border-color: #ff2ee6;
+  --grid-color: #1a0a2e;
+  --label-color: #9d4edd;
+  --kbd-bg: #1a0a2e;
+  --kbd-border: #ff2ee6;
+  --kbd-color: #e0e0ff;
+  --control-color: #b39ddb;
+  --overlay-bg: rgba(5, 1, 15, 0.85);
+  --overlay-title-color: #00e5ff;
+  --btn-bg: #ff2ee6;
+  --btn-color: #05010f;
+  --btn-hover-bg: #ff6ef0;
+}
+
+[data-skin="pastel"] {
+  --bg-color: #faf6f0;
+  --text-color: #4a4458;
+  --title-color: #b48ec8;
+  --title-shadow: rgba(180, 142, 200, 0.35);
   --board-bg: #ffffff;
-  --border-color: #d0d0dc;
-  --grid-color: #e2e2ea;
-  --label-color: #707088;
-  --kbd-bg: #e8e8f0;
-  --kbd-border: #c8c8d8;
-  --kbd-color: #444;
-  --control-color: #555;
-  --overlay-bg: rgba(240, 240, 248, 0.85);
-  --overlay-title-color: #d64545;
-  --btn-bg: #3a5fcd;
+  --border-color: #ecdff0;
+  --grid-color: #f3e9ef;
+  --label-color: #a99bb0;
+  --kbd-bg: #f5edf5;
+  --kbd-border: #e5d5e8;
+  --kbd-color: #6a5a72;
+  --control-color: #8a7a90;
+  --overlay-bg: rgba(250, 246, 240, 0.85);
+  --overlay-title-color: #e8a0b0;
+  --btn-bg: #c8a2d8;
   --btn-color: #ffffff;
-  --btn-hover-bg: #5478df;
+  --btn-hover-bg: #d8b8e8;
+}
+
+[data-skin="pixel"] {
+  --bg-color: #0d1b0d;
+  --text-color: #b8f0b8;
+  --title-color: #4caf50;
+  --title-shadow: rgba(76, 175, 80, 0.5);
+  --board-bg: #0a140a;
+  --border-color: #2d5a2d;
+  --grid-color: #1a2e1a;
+  --label-color: #5a8a5a;
+  --kbd-bg: #1a2e1a;
+  --kbd-border: #2d5a2d;
+  --kbd-color: #8ac88a;
+  --control-color: #6a9a6a;
+  --overlay-bg: rgba(13, 27, 13, 0.85);
+  --overlay-title-color: #f44336;
+  --btn-bg: #4caf50;
+  --btn-color: #0d1b0d;
+  --btn-hover-bg: #66bb6a;
 }
 
 body {
@@ -86,47 +126,27 @@ body {
   margin-bottom: 0;
 }
 
-.theme-toggle {
+.skin-select-label {
   display: flex;
   align-items: center;
   gap: 6px;
-  cursor: pointer;
   font-size: 11px;
   letter-spacing: 1px;
   color: var(--control-color);
   user-select: none;
+  transition: color 0.25s;
 }
 
-.theme-toggle .switch {
-  position: relative;
-  width: 38px;
-  height: 20px;
-  border-radius: 10px;
-  background: var(--border-color);
-  transition: background 0.2s;
-}
-
-.theme-toggle .switch::before {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--btn-bg);
-  transition: transform 0.2s;
-}
-
-.theme-toggle input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.theme-toggle input:checked + .switch::before {
-  transform: translateX(18px);
+.skin-select {
+  background: var(--kbd-bg);
+  color: var(--kbd-color);
+  border: 1px solid var(--kbd-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.25s, border-color 0.25s, color 0.25s;
 }
 
 .game-container {

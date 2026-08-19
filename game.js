@@ -4,17 +4,136 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#90caf9', // J - pale blue
-  '#ffb74d', // L - orange
-  '#9e9e9e', // N - tuerca (gris metálico)
-];
+// ---- Skins ----------------------------------------------------------
+// Config-driven skin table: each entry supplies an 8-color piece palette
+// (indices 1-8, matching PIECES) and the name of a cell-drawing strategy
+// from DRAW_STRATEGIES. Adding a new skin is a data change here, not new
+// branching logic in drawBlock().
+const SKINS = {
+  retro: {
+    label: 'Retro',
+    draw: 'flat',
+    palette: [
+      null,
+      '#4dd0e1', // I - cyan
+      '#ffd54f', // O - yellow
+      '#ba68c8', // T - purple
+      '#81c784', // S - green
+      '#e57373', // Z - red
+      '#90caf9', // J - pale blue
+      '#ffb74d', // L - orange
+      '#9e9e9e', // N - tuerca (gris metálico)
+    ],
+  },
+  neon: {
+    label: 'Neon',
+    draw: 'glow',
+    palette: [
+      null,
+      '#00e5ff', // I
+      '#ffee00', // O
+      '#e040fb', // T
+      '#00ff85', // S
+      '#ff1744', // Z
+      '#2979ff', // J
+      '#ff9100', // L
+      '#b0bec5', // N
+    ],
+  },
+  pastel: {
+    label: 'Pastel',
+    draw: 'rounded',
+    palette: [
+      null,
+      '#a7d8de', // I
+      '#fff2b2', // O
+      '#d8b4e2', // T
+      '#b8e2c8', // S
+      '#f4b8b8', // Z
+      '#b8d4f4', // J
+      '#f8d0a8', // L
+      '#d8d8d8', // N
+    ],
+  },
+  pixel: {
+    label: 'Pixel Art',
+    draw: 'pixel',
+    palette: [
+      null,
+      '#00bcd4', // I
+      '#ffeb3b', // O
+      '#9c27b0', // T
+      '#4caf50', // S
+      '#f44336', // Z
+      '#2196f3', // J
+      '#ff9800', // L
+      '#757575', // N
+    ],
+  },
+};
+
+// Cell-drawing strategies (strategy pattern). Each receives the context and
+// the block's top-left pixel coordinates + size, and is responsible for
+// fully restoring any canvas state it changes (shadowBlur, etc).
+// Fills the base cell square shared by every strategy before its own
+// decoration (glow, rounding, texture) is layered on top.
+function fillCell(context, px, py, color, size) {
+  context.fillStyle = color;
+  context.fillRect(px + 1, py + 1, size - 2, size - 2);
+}
+
+const DRAW_STRATEGIES = {
+  flat(context, px, py, color, size) {
+    fillCell(context, px, py, color, size);
+    context.fillStyle = 'rgba(255,255,255,0.12)';
+    context.fillRect(px + 1, py + 1, size - 2, 4);
+  },
+  glow(context, px, py, color, size) {
+    context.save();
+    context.shadowColor = color;
+    context.shadowBlur = size * 0.4;
+    fillCell(context, px, py, color, size);
+    context.shadowBlur = 0;
+    context.shadowColor = 'transparent';
+    context.fillStyle = 'rgba(255,255,255,0.18)';
+    context.fillRect(px + 1, py + 1, size - 2, 3);
+    context.restore();
+  },
+  rounded(context, px, py, color, size) {
+    context.save();
+    const r = Math.min(6, size / 4);
+    const hasRoundRect = typeof context.roundRect === 'function';
+    context.fillStyle = color;
+    if (hasRoundRect) {
+      context.beginPath();
+      context.roundRect(px + 1, py + 1, size - 2, size - 2, r);
+      context.fill();
+    } else {
+      context.fillRect(px + 1, py + 1, size - 2, size - 2);
+    }
+    context.fillStyle = 'rgba(255,255,255,0.3)';
+    if (hasRoundRect) {
+      context.beginPath();
+      context.roundRect(px + 2, py + 2, size - 4, (size - 4) / 2, r / 2);
+      context.fill();
+    } else {
+      context.fillRect(px + 2, py + 2, size - 4, 4);
+    }
+    context.restore();
+  },
+  pixel(context, px, py, color, size) {
+    context.save();
+    fillCell(context, px, py, color, size);
+    const half = (size - 2) / 2;
+    context.fillStyle = 'rgba(0,0,0,0.15)';
+    context.fillRect(px + 1, py + 1, half, half);
+    context.fillRect(px + 1 + half, py + 1 + half, half, half);
+    context.fillStyle = 'rgba(255,255,255,0.15)';
+    context.fillRect(px + 1 + half, py + 1, half, half);
+    context.fillRect(px + 1, py + 1 + half, half, half);
+    context.restore();
+  },
+};
 
 const PIECES = [
   null,
@@ -41,35 +160,42 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
-const themeSwitch = document.getElementById('theme-switch');
-const themeLabel = document.getElementById('theme-label');
+const skinSelect = document.getElementById('skin-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let currentSkin = 'retro';
 
 function gridColor() {
   return getComputedStyle(document.body).getPropertyValue('--grid-color').trim();
 }
 
-function applyTheme(theme) {
-  if (theme === 'light') {
-    document.body.setAttribute('data-theme', 'light');
-  } else {
-    document.body.removeAttribute('data-theme');
-  }
-  themeSwitch.checked = theme === 'light';
-  themeLabel.textContent = theme === 'light' ? 'LIGHT' : 'DARK';
+function applySkin(skin) {
+  if (!SKINS[skin]) skin = 'retro';
+  currentSkin = skin;
+  document.body.setAttribute('data-skin', skin);
+  skinSelect.value = skin;
   if (typeof draw === 'function' && board) draw();
+  if (typeof drawNext === 'function' && next) drawNext();
 }
 
-function initTheme() {
-  const saved = localStorage.getItem('tetris-theme');
-  applyTheme(saved === 'light' ? 'light' : 'dark');
+function initSkin() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem('tetris-skin');
+  } catch (e) {
+    // localStorage unavailable (e.g. Safari private mode) — fall back to default
+  }
+  applySkin(SKINS[saved] ? saved : 'retro');
 }
 
-themeSwitch.addEventListener('change', () => {
-  const theme = themeSwitch.checked ? 'light' : 'dark';
-  localStorage.setItem('tetris-theme', theme);
-  applyTheme(theme);
+skinSelect.addEventListener('change', () => {
+  const skin = skinSelect.value;
+  try {
+    localStorage.setItem('tetris-skin', skin);
+  } catch (e) {
+    // ignore write failures, skin still applies for this session
+  }
+  applySkin(skin);
 });
 
 function createBoard() {
@@ -188,13 +314,11 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const skin = SKINS[currentSkin] || SKINS.retro;
+  const color = skin.palette[colorIndex];
+  const strategy = DRAW_STRATEGIES[skin.draw] || DRAW_STRATEGIES.flat;
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  strategy(context, x * size, y * size, color, size);
   context.globalAlpha = 1;
 }
 
@@ -332,5 +456,5 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
-initTheme();
+initSkin();
 init();
