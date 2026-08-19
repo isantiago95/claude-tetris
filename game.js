@@ -43,8 +43,23 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeSwitch = document.getElementById('theme-switch');
 const themeLabel = document.getElementById('theme-label');
+const startScreen = document.getElementById('start-screen');
+const startBtn = document.getElementById('start-btn');
+const startHighscoresEl = document.getElementById('start-highscores');
+const startResetBtn = document.getElementById('start-reset-btn');
+const overlayHighscoresEl = document.getElementById('overlay-highscores');
+const runStatsEl = document.getElementById('run-stats');
+const nameEntryEl = document.getElementById('name-entry');
+const nameInputEl = document.getElementById('name-input');
+const saveScoreBtn = document.getElementById('save-score-btn');
+const resetScoresBtn = document.getElementById('reset-scores-btn');
+
+const HIGHSCORES_KEY = 'tetris-highscores';
+const MAX_HIGHSCORES = 5;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let comboStreak, runBestCombo, runBestTetris, pendingHighScoreEntry;
+let gameStarted = false;
 
 function gridColor() {
   return getComputedStyle(document.body).getPropertyValue('--grid-color').trim();
@@ -134,11 +149,16 @@ function clearLines() {
     }
   }
   if (cleared) {
+    comboStreak++;
+    runBestCombo = Math.max(runBestCombo, comboStreak);
+    runBestTetris = Math.max(runBestTetris, cleared);
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     updateHUD();
+  } else {
+    comboStreak = 0;
   }
 }
 
@@ -248,16 +268,150 @@ function drawNext() {
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
+// ---- High scores (localStorage adapter) ----
+
+function loadHighScoreData() {
+  try {
+    const raw = localStorage.getItem(HIGHSCORES_KEY);
+    if (!raw) return { scores: [], bestCombo: 0, bestTetris: 0 };
+    const parsed = JSON.parse(raw);
+    return {
+      scores: Array.isArray(parsed.scores) ? parsed.scores : [],
+      bestCombo: Number(parsed.bestCombo) || 0,
+      bestTetris: Number(parsed.bestTetris) || 0,
+    };
+  } catch (e) {
+    return { scores: [], bestCombo: 0, bestTetris: 0 };
+  }
+}
+
+function saveHighScoreData(data) {
+  try {
+    localStorage.setItem(HIGHSCORES_KEY, JSON.stringify(data));
+  } catch (e) {
+    // Safari private mode / quota errors — silently ignore, game keeps working.
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+function qualifiesForHighScore(candidateScore) {
+  const data = loadHighScoreData();
+  if (data.scores.length < MAX_HIGHSCORES) return true;
+  const lowest = data.scores[data.scores.length - 1];
+  return candidateScore > (lowest ? lowest.score : 0);
+}
+
+function renderHighScoreTable(container, highlightEntry) {
+  const data = loadHighScoreData();
+  if (!data.scores.length) {
+    container.innerHTML = '<p class="hs-empty">Sin récords aún</p>' +
+      `<p class="hs-alltime">Mejor combo: ${data.bestCombo} · Máx. líneas: ${data.bestTetris}</p>`;
+    return;
+  }
+  const rows = data.scores.map((entry, i) => {
+    const isHighlight = highlightEntry &&
+      entry.name === highlightEntry.name &&
+      entry.score === highlightEntry.score &&
+      entry.date === highlightEntry.date;
+    return `<tr class="${isHighlight ? 'hs-highlight' : ''}">` +
+      `<td>${i + 1}</td><td>${escapeHtml(entry.name)}</td><td>${entry.score.toLocaleString()}</td>` +
+      `<td>${entry.lines}</td><td>${entry.level}</td></tr>`;
+  }).join('');
+  container.innerHTML = `
+    <table>
+      <thead><tr><th>#</th><th>Nombre</th><th>Puntos</th><th>Líneas</th><th>Nivel</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="hs-alltime">Mejor combo: ${data.bestCombo} · Máx. líneas: ${data.bestTetris}</p>`;
+}
+
+function saveHighScoreEntry(rawName) {
+  if (!pendingHighScoreEntry) return;
+  const data = loadHighScoreData();
+  const name = (rawName || '').trim().slice(0, 10).toUpperCase() || 'AAA';
+  const entry = {
+    name,
+    score: pendingHighScoreEntry.score,
+    lines: pendingHighScoreEntry.lines,
+    level: pendingHighScoreEntry.level,
+    combo: pendingHighScoreEntry.combo,
+    date: new Date().toISOString(),
+  };
+  data.scores.push(entry);
+  data.scores.sort((a, b) => b.score - a.score);
+  data.scores = data.scores.slice(0, MAX_HIGHSCORES);
+  data.bestCombo = Math.max(data.bestCombo, pendingHighScoreEntry.combo);
+  data.bestTetris = Math.max(data.bestTetris, pendingHighScoreEntry.tetris);
+  saveHighScoreData(data);
+  pendingHighScoreEntry = null;
+  nameEntryEl.classList.add('hidden');
+  renderHighScoreTable(overlayHighscoresEl, entry);
+}
+
+function resetHighScores() {
+  saveHighScoreData({ scores: [], bestCombo: 0, bestTetris: 0 });
+  renderHighScoreTable(overlayHighscoresEl, null);
+  renderHighScoreTable(startHighscoresEl, null);
+}
+
+// Strategy: arm-then-confirm reset, returns a disarm() to reset the button's label externally.
+function wireResetButton(btn) {
+  let pending = false;
+  function disarm() {
+    pending = false;
+    btn.textContent = 'Resetear records';
+  }
+  btn.addEventListener('click', () => {
+    if (!pending) {
+      pending = true;
+      btn.textContent = '¿Seguro? Confirmar';
+      return;
+    }
+    resetHighScores();
+    disarm();
+  });
+  return disarm;
+}
+
+const disarmOverlayReset = wireResetButton(resetScoresBtn);
+wireResetButton(startResetBtn);
+
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
-  overlay.classList.remove('hidden');
+  runStatsEl.textContent = `Combo: ${runBestCombo} · Líneas simultáneas: ${runBestTetris}`;
+  disarmOverlayReset();
+
+  const data = loadHighScoreData();
+  data.bestCombo = Math.max(data.bestCombo, runBestCombo);
+  data.bestTetris = Math.max(data.bestTetris, runBestTetris);
+  saveHighScoreData(data);
+
+  if (qualifiesForHighScore(score)) {
+    pendingHighScoreEntry = { score, lines, level, combo: runBestCombo, tetris: runBestTetris };
+    nameEntryEl.classList.remove('hidden');
+    nameInputEl.value = 'AAA';
+    renderHighScoreTable(overlayHighscoresEl, null);
+    overlay.classList.remove('hidden');
+    nameInputEl.focus();
+    nameInputEl.select();
+  } else {
+    pendingHighScoreEntry = null;
+    nameEntryEl.classList.add('hidden');
+    renderHighScoreTable(overlayHighscoresEl, null);
+    overlay.classList.remove('hidden');
+  }
 }
 
 function togglePause() {
-  if (gameOver) return;
+  if (!gameStarted || gameOver) return;
   paused = !paused;
   if (!paused) {
     lastTime = performance.now();
@@ -288,6 +442,7 @@ function loop(ts) {
 }
 
 function init() {
+  gameStarted = true;
   board = createBoard();
   score = 0;
   lines = 0;
@@ -296,6 +451,10 @@ function init() {
   gameOver = false;
   dropInterval = 1000;
   dropAccum = 0;
+  comboStreak = 0;
+  runBestCombo = 0;
+  runBestTetris = 0;
+  pendingHighScoreEntry = null;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
@@ -306,6 +465,7 @@ function init() {
 }
 
 document.addEventListener('keydown', e => {
+  if (!gameStarted) return;
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
@@ -332,5 +492,18 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+saveScoreBtn.addEventListener('click', () => saveHighScoreEntry(nameInputEl.value));
+nameInputEl.addEventListener('keydown', e => {
+  if (e.code === 'Enter' || e.key === 'Enter') {
+    e.preventDefault();
+    saveHighScoreEntry(nameInputEl.value);
+  }
+});
+
+startBtn.addEventListener('click', () => {
+  startScreen.classList.add('hidden');
+  init();
+});
+
 initTheme();
-init();
+renderHighScoreTable(startHighscoresEl, null);
